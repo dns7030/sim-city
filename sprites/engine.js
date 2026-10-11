@@ -60,7 +60,9 @@ function windows(opt) {
       const x = mx + c * cw + (cw - w) / 2, y = my + r * rh + (rh - h) / 2;
       const on = ((r * 7 + c * 13) % 10) / 10 < lit;
       ctx.fillStyle = on ? '#f3d37a' : shade(glass, light);
-      ctx.fillRect(x, y, w, h);
+      if (opt.arch) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + h - w / 2); ctx.quadraticCurveTo(x, y + h, x + w / 2, y + h); ctx.quadraticCurveTo(x + w, y + h, x + w, y + h - w / 2); ctx.lineTo(x + w, y); ctx.closePath(); ctx.fill(); }
+      else ctx.fillRect(x, y, w, h);
+      if (opt.trim) { ctx.strokeStyle = opt.trim; ctx.lineWidth = .9; ctx.strokeRect(x - .6, y - .6, w + 1.2, h + 1.2); }
       if (balc && c % balc === 0) { ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(x - 1, y - 1.5, w + 2, 1.5); }
     }
     if (seam) { // panel seams
