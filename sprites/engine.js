@@ -155,3 +155,9 @@ function faceText(txt, u, v, px, col = '#b83a2e') {
   ctx.save(); ctx.scale(1, -1); ctx.fillStyle = col; ctx.font = `bold ${px}px sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, u, -v); ctx.restore();
 }
+
+// Flat rectangle on the ground (tile coords) at height z.
+function flat(x0, y0, x1, y1, col, z = 0) {
+  poly([[sx(x0, y0), sy(x0, y0, z)], [sx(x1, y0), sy(x1, y0, z)], [sx(x1, y1), sy(x1, y1, z)], [sx(x0, y1), sy(x0, y1, z)]], col);
+}
+function wire(x0, y0, z0, x1, y1, z1, col = '#333', w = 1) { line(sx(x0, y0), sy(x0, y0, z0), sx(x1, y1), sy(x1, y1, z1), col, w); }
