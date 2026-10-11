@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gorod</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2229; color: #e8e6df; font: 13px/1.35 system-ui, sans-serif; user-select: none; }
+  canvas#view { position: fixed; inset: 0; touch-action: none; }
+  #top { position: fixed; top: 0; left: 0; right: 0; height: 46px; display: flex; align-items: center; gap: 18px; padding: 0 14px; background: #2a1d1d; border-bottom: 3px solid #b02a22; z-index: 5; }
+  #top .brand { font-weight: 800; letter-spacing: .08em; color: #f0c648; font-size: 16px; }
+  .stat small { display: block; font-size: 10px; text-transform: uppercase; color: #a89c94; letter-spacing: .06em; }
+  .stat b { font-size: 14px; font-variant-numeric: tabular-nums; }
+  .rci { display: flex; gap: 6px; } .rci div { width: 16px; height: 32px; background: #111; position: relative; border: 1px solid #555; }
+  .rci div i { position: absolute; left: 0; right: 0; } .rci div span { position: absolute; bottom: -13px; left: 3px; font-size: 9px; color: #aaa; }
+  .rci div::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid #666; }
+  .sp { flex: 1; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .btn, .spd { background: #3b2a2a; border: 1px solid #6b4040; padding: 5px 9px; border-radius: 3px; }
+  .btn:hover, .spd:hover { background: #4d3535; } .spd.on { background: #b02a22; border-color: #e0584e; }
+  #palette { position: fixed; top: 52px; left: 0; bottom: 0; width: 246px; overflow-y: auto; background: #241c1cf2; padding: 6px 8px 90px; z-index: 4; border-right: 1px solid #4a3030; }
+  .sec { margin: 10px 2px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #f0c648; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .item { background: #33292a; border: 1px solid #4d3a3a; border-radius: 4px; padding: 3px 2px 4px; text-align: center; min-width: 0; }
+  .item:hover { background: #443536; } .item.on { border-color: #f0c648; background: #4f3b34; }
+  .item canvas { width: 100%; height: auto; display: block; } .lbl { font-size: 10px; line-height: 1.1; height: 22px; overflow: hidden; } .cost { font-size: 10px; color: #f0c648; }
+  #infoBox { position: fixed; right: 12px; bottom: 12px; width: 300px; background: #241c1ceb; border: 1px solid #4a3030; border-radius: 5px; padding: 8px 10px; z-index: 4; }
+  #hint { font-size: 11px; color: #a89c94; margin-top: 6px; } .dim { color: #a89c94; }
+  #toasts { position: fixed; top: 56px; right: 12px; z-index: 6; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .toast { background: #b02a22; color: #fff; padding: 7px 12px; border-radius: 4px; box-shadow: 0 2px 8px #0008; max-width: 340px; }
+  #budget { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); width: 340px; background: #2a1f1f; border: 2px solid #b02a22; border-radius: 6px; padding: 12px 14px; z-index: 7; }
+  #budget[hidden] { display: none; } #budget h3 { margin: 0 0 8px; color: #f0c648; } #budget table { width: 100%; border-collapse: collapse; } #budget td { padding: 3px 0; border-bottom: 1px solid #3d2c2c; } .r { text-align: right; } .neg { color: #ff8a7a; }
+  #budget input { width: 100%; margin-top: 4px; }
+  @media (max-width: 800px) { #palette { width: 190px; } #top { gap: 10px; overflow-x: auto; } }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="top">
+  <div class="brand">ГОРОД</div>
+  <div class="stat"><small>Treasury</small><b id="money">₽ 0</b></div>
+  <div class="stat"><small>Date</small><b id="date"></b></div>
+  <div class="stat"><small>Population</small><b id="pop">0</b></div>
+  <div class="stat"><small>Happiness</small><b id="happy">0%</b></div>
+  <div class="stat"><small>Power use / supply</small><b id="power"></b></div>
+  <div class="rci"><div title="Residential demand"><i id="dR"></i><span>R</span></div><div title="Commercial demand"><i id="dC"></i><span>C</span></div><div title="Industrial demand"><i id="dI"></i><span>I</span></div></div>
+  <div class="sp"></div>
+  <button class="spd" data-s="0" title="Pause (Space)">❚❚</button><button class="spd" data-s="1">1×</button><button class="spd" data-s="2">2×</button><button class="spd" data-s="4">4×</button>
+  <button class="btn" id="btnBudget">Budget</button><button class="btn" id="btnSave">Save</button><button class="btn" id="btnNew">New</button>
+</div>
+<div id="palette"></div>
+<div id="infoBox"><div id="info"></div><div id="hint"></div></div>
+<div id="toasts"></div>
+<div id="budget" hidden><h3>Budget <button class="btn" id="closeBudget" style="float:right">✕</button></h3><div id="budgetBody"></div>
+  <div style="margin-top:10px">Tax rate: <b id="rateVal"></b><input id="rate" type="range" min="0" max="20" step="1" value="9"></div></div>
+<script src="sprites/engine.js"></script>
+<script src="sprites/set1.js"></script>
+<script src="sprites/set2.js"></script>
+<script src="sprites/set3.js"></script>
+<script src="sprites/set4.js"></script>
+<script src="sprites/set5.js"></script>
+<script src="game/data.js"></script>
+<script src="game/sim.js"></script>
+<script src="game/ui.js"></script>
+</body>
+</html>
