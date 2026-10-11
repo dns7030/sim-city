@@ -13,9 +13,9 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 function noiseAt(x, y, ph) {
   return Math.sin(x * .19 + ph[0]) * Math.sin(y * .16 + ph[1]) + .6 * Math.sin(x * .41 + ph[2] + y * .13) * Math.sin(y * .37 + ph[3] - x * .09) + .35 * Math.sin((x + y) * .23 + ph[4]);
 }
-function newState(biome = 'taiga') {
+function newState(biome = 'taiga', epoch = 'soviet') {
   const n = MAP * MAP, B = BIOMES[biome];
-  const s = { biome, ter: new Uint8Array(n), tree: new Uint8Array(n), rock: new Uint8Array(n), road: new Uint8Array(n), zone: new Uint8Array(n),
+  const s = { biome, epoch, ter: new Uint8Array(n), tree: new Uint8Array(n), rock: new Uint8Array(n), road: new Uint8Array(n), zone: new Uint8Array(n),
     bmap: new Int32Array(n).fill(-1), blds: [], money: 60000, day: 0, rate: 9, speed: 1, seasonClock: 0,
     cov: {}, roadNear: new Uint8Array(n), stats: {}, last: { inc: 0, exp: 0, tax: 0, biz: 0, tour: 0, roads: 0, up: 0 }, log: [], drawDirty: true, covDirty: true };
   const phase = Math.random() * 6, ph = [0, 1, 2, 3, 4].map(() => Math.random() * 6.28), c = (MAP - 1) / 2;
@@ -130,7 +130,8 @@ function tryGrow(z) {
   for (let k = 0; k < 40 && !ok; k++) { x = Math.floor(Math.random() * MAP); y = Math.floor(Math.random() * MAP); i = idx(x, y); ok = S.zone[i] === z && canBuildTile(x, y) && S.roadNear[i]; }
   if (!ok) return;
   const t = tierAt(z, i);
-  const cands = ZONE_LIST[z].map(k => DEF[N[k]]).filter(d => d.tier <= t);
+  const cands = ZONE_DEFS[z].filter(d => (S.epoch === 'mixed' || d.epoch === S.epoch) && d.tier <= t);
+  if (!cands.length) return;
   const w = cands.map(d => 1 / (1 + (t - d.tier))), tot = w.reduce((a, b) => a + b, 0);
   const order = []; const pool = cands.slice(), wp = w.slice();
   while (pool.length) { let r = Math.random() * wp.reduce((a, b) => a + b, 0), k = 0; while (r > wp[k] && k < wp.length - 1) { r -= wp[k]; k++; } order.push(pool[k]); pool.splice(k, 1); wp.splice(k, 1); }
@@ -160,6 +161,7 @@ function monthly() {
     else { use += d.pw; if (d.kind === 'C') { jobsC += d.jobs; effC += d.jobs * (1 + bonusFor(b, 'C')); } else if (d.kind === 'I') { jobsI += d.jobs; effI += d.jobs * (1 + bonusFor(b, 'I')); } else jobsS += d.jobs;
       if (d.tour) tour += d.tour * (1 + S.cov.cult[i] * .4); } }
   const B = BIOMES[S.biome], sn = seasonIdx(); use *= sn === 0 && B.cold ? B.cold : (S.biome === 'desert' && sn === 2 ? 1.15 : 1);
+  if (!EPOCHS[S.epoch].power) use = 0;
   const jobs = jobsC + jobsI + jobsS, work = pop * .5, emp = Math.min(work, jobs), unemp = work > 0 ? (work - emp) / work : 0;
   const rate = S.rate, taxPen = Math.max(0, rate - 12) * 3 - Math.max(0, 7 - rate) * .5, power = use <= 0 ? 1 : clamp(gen / use, 0, 1);
   const powPen = (1 - power) * 40, uePen = unemp * 25;
@@ -190,15 +192,15 @@ function monthly() {
   if ((S.day / 30) % 3 === 0) save();
 }
 
-function dateText() { const m = Math.floor(S.day / 30); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m % 12]} ${1970 + Math.floor(m / 12)}`; }
+function dateText() { const m = Math.floor(S.day / 30); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m % 12]} ${EPOCHS[S.epoch].year + Math.floor(m / 12)}`; }
 
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, clock: Math.round(S.seasonClock), biome: S.biome, rock: Array.from(S.rock), day: S.day, money: S.money, rate: S.rate, ter: Array.from(S.ter), tree: Array.from(S.tree), road: Array.from(S.road), zone: Array.from(S.zone),
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 3, clock: Math.round(S.seasonClock), biome: S.biome, epoch: S.epoch, rock: Array.from(S.rock), day: S.day, money: S.money, rate: S.rate, ter: Array.from(S.ter), tree: Array.from(S.tree), road: Array.from(S.road), zone: Array.from(S.zone),
   blds: S.blds.filter(Boolean).map(b => ({ n: b.name, x: b.x, y: b.y, o: +b.occ.toFixed(3) })) })); } catch (e) {} }
 function load() {
   let raw; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {} if (!raw) return false;
-  try { const d = JSON.parse(raw); if (d.v !== 2) return false; const s = newState(d.biome); s.rock.set(d.rock); s.day = d.day; s.seasonClock = d.clock || 0; s.money = d.money; s.rate = d.rate;
+  try { const d = JSON.parse(raw); if (d.v !== 3) return false; const s = newState(d.biome, d.epoch); s.rock.set(d.rock); s.day = d.day; s.seasonClock = d.clock || 0; s.money = d.money; s.rate = d.rate;
     s.ter.set(d.ter); s.tree.set(d.tree); s.road.set(d.road); s.zone.set(d.zone); S = s;
     d.blds.forEach(b => { const x = DEF[b.n]; if (x) addBuilding(x, b.x, b.y).occ = b.o; });
     const m = d.money; recompute(); monthly(); S.day = d.day; S.money = m; return true; } catch (e) { return false; }
 }
-function newGame(biome = 'taiga') { S = newState(biome); placeResources(); recompute(); }
+function newGame(biome = 'taiga', epoch = 'soviet') { S = newState(biome, epoch); placeResources(); recompute(); }

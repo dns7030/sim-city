@@ -15,8 +15,8 @@ function bake(s) {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (px[(y * W + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   s.crop = { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
 }
+function ensure(s) { if (!s.img) bake(s); return s; }
 function initSprites() {
-  sprites.forEach(bake);
   for (const k in DEF) { const s = SP[k]; if (!s) { console.warn('missing sprite', k); continue; } DEF[k].w = s.w; DEF[k].d = s.d; }
 }
 
@@ -63,14 +63,14 @@ function drawTile(x, y, t) {
 }
 function drawRoad(x, y, i) {
   const r = (dx, dy) => inMap(x + dx, y + dy) && S.road[idx(x + dx, y + dy)];
-  const px = r(1, 0), mx = r(-1, 0), py = r(0, 1), my = r(0, -1), bridge = S.ter[i], asph = '#5d6066';
+  const px = r(1, 0), mx = r(-1, 0), py = r(0, 1), my = r(0, -1), bridge = S.ter[i], asph = S.epoch === 'rus' ? '#8a7a5a' : S.epoch === 'imp' || S.epoch === 'rev' ? '#7a766c' : '#5d6066', old = S.epoch === 'rus' || S.epoch === 'imp' || S.epoch === 'rev';
   diamond(x, y); g.fillStyle = bridge ? '#9a9a92' : '#b4b3aa'; g.fill();
   const none = !(px || mx || py || my), lo = .22, hi = .78;
   quad(x, y, lo, lo, hi, hi, asph);
   if (px || none || mx) { if (px || none) quad(x, y, hi - .01, lo, 1, hi, asph); if (mx || none) quad(x, y, 0, lo, lo + .01, hi, asph); }
   if (py) quad(x, y, lo, hi - .01, hi, 1, asph); if (my) quad(x, y, lo, 0, hi, lo + .01, asph);
   const junction = (px || mx) && (py || my), dash = '#e4e3dc';
-  if (!junction) {
+  if (!junction && !old) {
     if (px || mx || none) { if (px || none) quad(x, y, .75, .485, .98, .515, dash); if (mx || none) quad(x, y, .02, .485, .25, .515, dash); }
     if (py) quad(x, y, .485, .75, .515, .98, dash); if (my) quad(x, y, .485, .02, .515, .25, dash);
   }
@@ -128,12 +128,12 @@ function draw(t) {
     const [wx, wy] = P(o.x, o.y);
     if (wx < vx0 - 300 || wx > vx1 + 300 || wy < vy0 - 100 || wy > vy1 + 330) continue;
     if (o.t === 1) drawTree(o.x, o.y, o.v); else if (o.t === 2) drawRock(o.x, o.y, o.v);
-    else { const s = SP[o.b.name]; g.drawImage(s.img, wx - s.ox, wy - s.oy); if (selected === o.b) { diamond(o.b.x, o.b.y, o.b.w, o.b.d); g.strokeStyle = '#ffd24a'; g.lineWidth = 2; g.stroke(); } }
+    else { const s = ensure(SP[o.b.name]); g.drawImage(s.img, wx - s.ox, wy - s.oy); if (selected === o.b) { diamond(o.b.x, o.b.y, o.b.w, o.b.d); g.strokeStyle = '#ffd24a'; g.lineWidth = 2; g.stroke(); } }
   }
   if (hover) {
     const [tx, ty] = hover;
     if (tool.type === 'b') {
-      const [ax, ay] = anchorFor(tool.name, tx, ty), s = SP[tool.name], ok = ghostOK(tool.name, ax, ay), [wx, wy] = P(ax, ay);
+      const [ax, ay] = anchorFor(tool.name, tx, ty), s = ensure(SP[tool.name]), ok = ghostOK(tool.name, ax, ay), [wx, wy] = P(ax, ay);
       diamond(ax, ay, s.w, s.d); g.fillStyle = ok ? 'rgba(80,220,100,.35)' : 'rgba(230,60,50,.4)'; g.fill();
       g.globalAlpha = .75; g.drawImage(s.img, wx - s.ox, wy - s.oy); g.globalAlpha = 1;
     } else if (inMap(tx, ty)) { diamond(tx, ty); g.strokeStyle = tool.type === 'bulldoze' ? '#ff5a4a' : '#fff'; g.lineWidth = 2; g.stroke(); }
@@ -148,7 +148,7 @@ function bar(id, v) { const e = $(id); e.style.height = Math.abs(v) * 50 + '%'; 
 function updateHud() {
   const st = S.stats; $('money').textContent = '₽ ' + fmt(S.money); $('money').style.color = S.money < 0 ? '#ff6a5a' : '';
   $('date').textContent = dateText(); $('season').textContent = SEASONS[seasonIdx()] + (settings.lock >= 0 ? ' (locked)' : ''); $('pop').textContent = fmt(st.pop);
-  $('happy').textContent = Math.round(st.happy) + '%'; $('power').textContent = `${fmt(st.use)} / ${fmt(st.gen)} MW`; $('power').style.color = st.use > st.gen ? '#ff6a5a' : '';
+  $('happy').textContent = Math.round(st.happy) + '%'; $('power').textContent = EPOCHS[S.epoch].power ? `${fmt(st.use)} / ${fmt(st.gen)} MW` : 'not needed'; $('power').style.color = st.use > st.gen ? '#ff6a5a' : '';
   bar('dR', st.dem[1]); bar('dC', st.dem[2]); bar('dI', st.dem[3]);
   document.querySelectorAll('.spd').forEach(b => b.classList.toggle('on', +b.dataset.s === S.speed));
   if (!$('budget').hidden) renderBudget();
@@ -168,15 +168,21 @@ function renderBudget() {
   $('budgetBody').innerHTML = `<table>${row('Resident taxes', '+' + fmt(l.tax))}${row('Business taxes', '+' + fmt(l.biz))}${row('Tourism', '+' + fmt(l.tour))}${row('Road upkeep', '-' + fmt(l.roads), 'neg')}${row('Service upkeep', '-' + fmt(l.up), 'neg')}${row('<b>Net per month</b>', '<b>' + (l.inc - l.exp >= 0 ? '+' : '') + fmt(l.inc - l.exp) + '</b>', l.inc - l.exp >= 0 ? '' : 'neg')}</table>`;
   $('rateVal').textContent = S.rate + '%';
 }
+let palFilter = 'all';
+const TAB_NAMES = { all: 'All', rus: 'Old Rus', imp: 'Imperial', rev: 'Revival', soviet: 'Soviet', mod: 'Modern' };
+function epochOK(d) { const E = S.epoch; if (d.epoch === 'all') return true; if (E === 'mixed') return palFilter === 'all' || d.epoch === palFilter; return d.epoch === E; }
 function buildPalette() {
   const root = $('palette'); root.innerHTML = '';
-  PALETTE.forEach(([title, items]) => {
+  if (S.epoch === 'mixed') { const tabs = document.createElement('div'); tabs.className = 'tabs'; Object.keys(TAB_NAMES).forEach(k => { const t = document.createElement('button'); t.className = 'tab' + (palFilter === k ? ' on' : ''); t.textContent = TAB_NAMES[k]; t.onclick = () => { palFilter = k; buildPalette(); setTool(tool); }; tabs.appendChild(t); }); root.appendChild(tabs); }
+  const secs = [[PALETTE[0][0], PALETTE[0][1]], [PALETTE[1][0], PALETTE[1][1]]];
+  CATS.forEach(c => { const items = Object.values(DEF).filter(d => d.cat === c && epochOK(d) && SP[d.name]).sort((a, b) => a.cost - b.cost); if (items.length) secs.push([c, items.map(d => ({ b: d.name }))]); });
+  secs.forEach(([title, items]) => {
     const h = document.createElement('div'); h.className = 'sec'; h.textContent = title; root.appendChild(h);
     const grid = document.createElement('div'); grid.className = 'grid'; root.appendChild(grid);
     items.forEach(it => {
       const btn = document.createElement('button'); btn.className = 'item'; const cv = document.createElement('canvas'); cv.width = 64; cv.height = 52; const c = cv.getContext('2d');
       let label, cost, tip;
-      if (it.b) { const d = DEF[N[it.b]], s = SP[d.name]; label = d.name.replace(/ \(.*\)$/, ''); cost = d.cost; tip = `${d.name}\n${describe(d)}\nCost ₽${fmt(d.cost)}`;
+      if (it.b) { const d = DEF[it.b], s = ensure(SP[d.name]); label = d.name.replace(/ \(.*\)$/, ''); cost = d.cost; tip = `${d.name}\n${describe(d)}\nCost ₽${fmt(d.cost)}`;
         const k = Math.min(60 / s.crop.w, 48 / s.crop.h); c.drawImage(s.img, s.crop.x, s.crop.y, s.crop.w, s.crop.h, (64 - s.crop.w * k) / 2, 50 - s.crop.h * k, s.crop.w * k, s.crop.h * k);
         btn.onclick = () => setTool({ type: 'b', name: d.name }); btn._key = 'b' + d.name; }
       else { label = it.label; cost = it.tool === 'road' ? COST.road : it.tool === 'zone' ? COST.zone : 0; tip = label + (cost ? ` (₽${cost}/tile)` : '');
@@ -193,14 +199,21 @@ function buildPalette() {
     });
   });
 }
+function startGame(biome, epoch) {
+  $('picker').hidden = true; newGame(biome, epoch); palFilter = 'all'; buildPalette(); centerCam(); $('rate').value = S.rate; setTool({ type: 'select' });
+  showToast(`${EPOCHS[epoch].name} · ${BIOMES[biome].name}. ${EPOCHS[epoch].power ? 'Build power, roads, then zone R / C / I.' : 'Build roads, then zone R / C / I. No power needed.'}`);
+}
 function showPicker(first) {
-  const m = $('picker'); m.hidden = false; $('pickerTitle').textContent = first ? 'Choose your land' : 'New city: choose your land';
-  const box = $('pickerCards'); box.innerHTML = '';
+  const m = $('picker'); m.hidden = false; $('pickerCancel').hidden = first; $('pickerCancel').onclick = () => { m.hidden = true; };
+  const box = $('pickerCards'); box.innerHTML = ''; $('pickerTitle').textContent = first ? 'Choose your epoch' : 'New city: choose your epoch';
+  EPOCH_ORDER.forEach(k => { const c = document.createElement('button'); c.className = 'card'; const E = EPOCHS[k];
+    c.innerHTML = `<b>${E.name}</b><small>${E.years}</small><span>${E.blurb}</span>`; c.onclick = () => chooseLand(k, first); box.appendChild(c); });
+}
+function chooseLand(epoch, first) {
+  const box = $('pickerCards'); box.innerHTML = ''; $('pickerTitle').textContent = EPOCHS[epoch].name + ': choose your land';
   [...BIOME_ORDER, 'random'].forEach(k => { const c = document.createElement('button'); c.className = 'card'; const B = BIOMES[k];
-    c.innerHTML = `<b>${k === 'random' ? 'Random' : B.name}</b><span>${k === 'random' ? 'Surprise me.' : B.desc}</span>`;
-    c.onclick = () => { const biome = k === 'random' ? pick(BIOME_ORDER) : k; m.hidden = true; newGame(biome); centerCam(); $('rate').value = S.rate; setTool({ type: 'select' }); showToast(BIOMES[biome].name + '. Build power, roads, then zone R / C / I.'); };
-    box.appendChild(c); });
-  $('pickerCancel').hidden = first; $('pickerCancel').onclick = () => { m.hidden = true; };
+    c.innerHTML = `<b>${k === 'random' ? 'Random' : B.name}</b><span>${k === 'random' ? 'Surprise me.' : B.desc}</span>`; c.onclick = () => startGame(k === 'random' ? pick(BIOME_ORDER) : k, epoch); box.appendChild(c); });
+  const back = document.createElement('button'); back.className = 'card'; back.innerHTML = '<b>← Back</b><span>Choose another epoch.</span>'; back.onclick = () => showPicker(first); box.appendChild(back);
 }
 function setTool(t) {
   tool = t; selected = null;
@@ -252,9 +265,9 @@ addEventListener('resize', resize);
 // ---------- boot ----------
 function centerCam() { cam.z = 1; cam.x = view.width / 2 + 120; cam.y = view.height / 2 - (MAP - 1) * HH * cam.z; }
 function boot() {
-  resize(); initSprites(); buildPalette();
-  const loaded = load(); if (!loaded) { newGame('taiga'); S.speed = 0; }
-  centerCam(); setTool({ type: 'select' }); if (!loaded) showPicker(true);
+  resize(); initSprites();
+  const loaded = load(); if (!loaded) { newGame('taiga', 'soviet'); S.speed = 0; }
+  buildPalette(); centerCam(); setTool({ type: 'select' }); if (!loaded) showPicker(true);
   document.querySelectorAll('.spd').forEach(b => b.onclick = () => { S.speed = +b.dataset.s; });
   $('btnBudget').onclick = () => { $('budget').hidden = !$('budget').hidden; renderBudget(); };
   $('closeBudget').onclick = () => { $('budget').hidden = true; };

@@ -18,7 +18,7 @@ const DEF = {};
 // kind: R/C/I grow on zones (free). S = placed by the player.
 // cap residents, jobs, pw = MW used, gen = MW made, up = upkeep/month, r = coverage radius,
 // edu/health/cult/happy/transit/police/fire = coverage strength, poll = pollution, tour = tourism income/month.
-function def(key, o) { DEF[N[key]] = Object.assign({ key, name: N[key], kind: 'S', cost: 0, up: 0, pw: 0, gen: 0, jobs: 0, cap: 0, r: 0, poll: 0, tour: 0, tier: 0 }, o); }
+function def(key, o) { DEF[N[key]] = Object.assign({ key, name: N[key], epoch: 'soviet', cat: null, kind: 'S', cost: 0, up: 0, pw: 0, gen: 0, jobs: 0, cap: 0, r: 0, poll: 0, tour: 0, tier: 0 }, o); }
 
 // Residential
 def('dacha',    { kind: 'R', cap: 6,   pw: .2, tier: 0 });
@@ -121,10 +121,10 @@ function describe(d) {
 
 // ---- Natural resource sites (placed by the map generator; cannot be built or bulldozed) ----
 Object.assign(N, { coalmine: 'Coal Mine', ironq: 'Iron Ore Quarry', oilf: 'Oil Field', farm: 'Collective Farm' });
-def('coalmine', { kind: 'X', poll: 4, r: 5, boost: 'I', label: 'coal' });
-def('ironq',    { kind: 'X', poll: 3, r: 5, boost: 'I', label: 'iron ore' });
-def('oilf',     { kind: 'X', poll: 3, r: 5, boost: 'I', label: 'oil' });
-def('farm',     { kind: 'X', poll: 0, r: 0, boost: 'C', label: 'farmland' });
+def('coalmine', { epoch: 'all', kind: 'X', poll: 4, r: 5, boost: 'I', label: 'coal' });
+def('ironq',    { epoch: 'all', kind: 'X', poll: 3, r: 5, boost: 'I', label: 'iron ore' });
+def('oilf',     { epoch: 'all', kind: 'X', poll: 3, r: 5, boost: 'I', label: 'oil' });
+def('farm',     { epoch: 'all', kind: 'X', poll: 0, r: 0, boost: 'C', label: 'farmland' });
 
 // ---- Biomes (map choices) ----
 // river: width / x position / wobble; lake: radius and position (fractions of MAP); rock: [hill threshold, mountain threshold] on a noise field

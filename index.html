@@ -40,6 +40,8 @@
   #picker h2 { margin: 0 0 12px; color: #f0c648; } #pickerCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
   .card { text-align: left; background: #3b2a2a; border: 1px solid #6b4040; border-radius: 5px; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
   .card:hover { background: #4d3535; border-color: #f0c648; } .card span { font-size: 12px; color: #c9bdb4; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 2px; } .tab { background: #33292a; border: 1px solid #4d3a3a; border-radius: 3px; padding: 3px 6px; font-size: 11px; } .tab.on { background: #b02a22; border-color: #e0584e; }
+  .card small { color: #f0c648; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -80,6 +82,7 @@
 <script src="sprites/rev.js"></script>
 <script src="sprites/mod.js"></script>
 <script src="game/data.js"></script>
+<script src="game/epochs.js"></script>
 <script src="game/sim.js"></script>
 <script src="game/ui.js"></script>
 </body>
