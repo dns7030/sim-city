@@ -6,30 +6,48 @@ const inMap = (x, y) => x >= 0 && y >= 0 && x < MAP && y < MAP;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
-function newState() {
-  const n = MAP * MAP;
-  const s = { ter: new Uint8Array(n), tree: new Uint8Array(n), road: new Uint8Array(n), zone: new Uint8Array(n),
+function noiseAt(x, y, ph) {
+  return Math.sin(x * .19 + ph[0]) * Math.sin(y * .16 + ph[1]) + .6 * Math.sin(x * .41 + ph[2] + y * .13) * Math.sin(y * .37 + ph[3] - x * .09) + .35 * Math.sin((x + y) * .23 + ph[4]);
+}
+function newState(biome = 'taiga') {
+  const n = MAP * MAP, B = BIOMES[biome];
+  const s = { biome, ter: new Uint8Array(n), tree: new Uint8Array(n), rock: new Uint8Array(n), road: new Uint8Array(n), zone: new Uint8Array(n),
     bmap: new Int32Array(n).fill(-1), blds: [], money: 60000, day: 0, rate: 9, speed: 1,
     cov: {}, roadNear: new Uint8Array(n), stats: {}, last: { inc: 0, exp: 0, tax: 0, biz: 0, tour: 0, roads: 0, up: 0 }, log: [], drawDirty: true, covDirty: true };
-  // terrain: a river and a lake
-  const phase = Math.random() * 6;
+  const phase = Math.random() * 6, ph = [0, 1, 2, 3, 4].map(() => Math.random() * 6.28), c = (MAP - 1) / 2;
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
-    const rx = MAP * .33 + Math.sin(y * .13 + phase) * 6 + Math.sin(y * .31 + phase * 2) * 2;
-    if (Math.abs(x - rx) < 1.8) s.ter[idx(x, y)] = 1;
-    const lx = MAP * .76, ly = MAP * .22, d = Math.hypot(x - lx, y - ly) + Math.sin(x * .7 + y * .5) * .8;
-    if (d < 5) s.ter[idx(x, y)] = 1;
-    if (!s.ter[idx(x, y)] && Math.random() < .14 + (Math.sin(x * .4) * Math.sin(y * .37) > .3 ? .2 : 0)) s.tree[idx(x, y)] = 1;
+    const i = idx(x, y), rx = MAP * B.river.x + Math.sin(y * .13 + phase) * B.river.amp * .6 + Math.sin(y * .31 + phase * 2) * 2;
+    if (Math.abs(x - rx) < B.river.w) s.ter[i] = 1;
+    const d = Math.hypot(x - MAP * B.lake.x, y - MAP * B.lake.y) + Math.sin(x * .7 + y * .5) * .8; if (d < B.lake.r) s.ter[i] = 1;
+  }
+  for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
+    const i = idx(x, y); if (s.ter[i]) continue;
+    const v = noiseAt(x, y, ph), centre = Math.hypot(x - c, y - c) < (biome === 'mountains' ? 7 : 11);
+    if (!centre) { if (v > B.rock[1]) s.rock[i] = 2; else if (v > B.rock[0]) s.rock[i] = 1; }
+    if (!s.rock[i] || s.rock[i] === 1) {
+      const cluster = Math.sin(x * .4) * Math.sin(y * .37) > .3 ? 1.9 : 1;
+      if (Math.random() < B.trees * cluster * (s.rock[i] ? .3 : 1)) { let r = Math.random(), t = B.treeKinds[0][0]; for (const [k, p] of B.treeKinds) { if (r < p) { t = k; break; } r -= p; } s.tree[i] = t; }
+    }
   }
   ['edu', 'health', 'cult', 'happy', 'transit', 'police', 'fire', 'poll'].forEach(k => s.cov[k] = new Float32Array(n));
   s.cov.lv = new Float32Array(n);
   s.stats = { pop: 0, jobs: 0, jobsC: 0, jobsI: 0, happy: 50, gen: 0, use: 0, dem: { 1: .5, 2: .2, 3: .3 }, avgOcc: 1, unemp: 0 };
   return s;
 }
+function placeResources() {
+  const B = BIOMES[S.biome], placed = [], c = (MAP - 1) / 2;
+  B.res.forEach(([key, count]) => { const d = DEF[N[key]];
+    for (let k = 0; k < count; k++) for (let tries = 0; tries < 300; tries++) {
+      const ax = 3 + Math.floor(Math.random() * (MAP - 8)), ay = 3 + Math.floor(Math.random() * (MAP - 8)), dc = Math.hypot(ax - c, ay - c);
+      if (dc < 10 || dc > 30 || !canPlace(d, ax, ay) || placed.some(p => Math.hypot(p[0] - ax, p[1] - ay) < 9)) continue;
+      addBuilding(d, ax, ay); placed.push([ax, ay]); break; } });
+}
+function seasonIdx() { const m = Math.floor(S.day / 30) % 12; return m === 11 || m <= 1 ? 0 : m <= 4 ? 1 : m <= 7 ? 2 : 3; }
 
 function toast(msg) { if (typeof showToast === 'function') showToast(msg); }
 function bAt(x, y) { return inMap(x, y) && S.bmap[idx(x, y)] >= 0 ? S.blds[S.bmap[idx(x, y)]] : null; }
 
-function canBuildTile(x, y) { const i = idx(x, y); return inMap(x, y) && !S.ter[i] && !S.road[i] && S.bmap[i] < 0; }
+function canBuildTile(x, y) { if (!inMap(x, y)) return false; const i = idx(x, y); return !S.ter[i] && !S.rock[i] && !S.road[i] && S.bmap[i] < 0; }
 function canPlace(d, ax, ay) {
   for (let y = ay; y < ay + d.d; y++) for (let x = ax; x < ax + d.w; x++) if (!canBuildTile(x, y)) return false;
   return true;
@@ -53,19 +71,19 @@ function removeBuildingAt(x, y) {
   S.blds[id] = null; S.drawDirty = true; S.covDirty = true; return true;
 }
 function paintRoad(x, y) {
-  const i = idx(x, y); if (!inMap(x, y) || S.road[i] || S.bmap[i] >= 0) return false;
+  const i = idx(x, y); if (!inMap(x, y) || S.rock[i] || S.road[i] || S.bmap[i] >= 0) return false;
   const c = S.ter[i] ? COST.bridge : COST.road;
   if (S.money < c) { toast('Not enough money'); return false; }
   S.money -= c; S.road[i] = 1; S.zone[i] = 0; S.tree[i] = 0; S.drawDirty = true; S.covDirty = true; return true;
 }
 function paintZone(x, y, z) {
-  const i = idx(x, y); if (!inMap(x, y) || S.ter[i] || S.road[i] || S.bmap[i] >= 0 || S.zone[i] === z) return false;
+  const i = idx(x, y); if (!inMap(x, y) || S.ter[i] || S.rock[i] || S.road[i] || S.bmap[i] >= 0 || S.zone[i] === z) return false;
   if (S.money < COST.zone) return false;
   S.money -= COST.zone; S.zone[i] = z; if (S.tree[i]) { S.tree[i] = 0; S.drawDirty = true; } return true;
 }
 function bulldoze(x, y) {
   if (!inMap(x, y)) return false; const i = idx(x, y);
-  if (S.bmap[i] >= 0) { if (S.money < COST.bulldozeBuilding) return false; S.money -= COST.bulldozeBuilding; return removeBuildingAt(x, y); }
+  if (S.bmap[i] >= 0) { if (DEF[S.blds[S.bmap[i]].name].kind === 'X') { toast('Natural resource sites can\'t be removed'); return false; } if (S.money < COST.bulldozeBuilding) return false; S.money -= COST.bulldozeBuilding; return removeBuildingAt(x, y); }
   if (S.road[i]) { S.road[i] = 0; S.money -= COST.bulldoze; S.drawDirty = true; S.covDirty = true; return true; }
   if (S.tree[i]) { S.tree[i] = 0; S.drawDirty = true; return true; }
   if (S.zone[i]) { S.zone[i] = 0; return true; }
@@ -129,12 +147,15 @@ function tick() {
 
 function monthly() {
   recompute();
-  const st = S.stats; let pop = 0, jobsC = 0, jobsI = 0, jobsS = 0, use = 0, gen = 0, capR = 0, tour = 0, up = 0;
+  const st = S.stats; let pop = 0, jobsC = 0, jobsI = 0, jobsS = 0, use = 0, gen = 0, capR = 0, tour = 0, up = 0, effC = 0, effI = 0;
+  const resSites = S.blds.filter(b => b && DEF[b.name].kind === 'X');
+  const bonusFor = (b, k) => Math.min(3, resSites.filter(r => DEF[r.name].boost === k && Math.hypot(r.x - b.x, r.y - b.y) <= 14).length) * .15;
   for (const b of S.blds) { if (!b) continue; const d = DEF[b.name];
     up += d.up; gen += d.gen; const i = idx(b.x, b.y);
     if (d.kind === 'R') { capR += d.cap; pop += Math.round(d.cap * b.occ); use += d.pw * (.3 + .7 * b.occ); }
-    else { use += d.pw; if (d.kind === 'C') jobsC += d.jobs; else if (d.kind === 'I') jobsI += d.jobs; else jobsS += d.jobs;
+    else { use += d.pw; if (d.kind === 'C') { jobsC += d.jobs; effC += d.jobs * (1 + bonusFor(b, 'C')); } else if (d.kind === 'I') { jobsI += d.jobs; effI += d.jobs * (1 + bonusFor(b, 'I')); } else jobsS += d.jobs;
       if (d.tour) tour += d.tour * (1 + S.cov.cult[i] * .4); } }
+  const B = BIOMES[S.biome], sn = seasonIdx(); use *= sn === 0 && B.cold ? B.cold : (S.biome === 'desert' && sn === 2 ? 1.15 : 1);
   const jobs = jobsC + jobsI + jobsS, work = pop * .5, emp = Math.min(work, jobs), unemp = work > 0 ? (work - emp) / work : 0;
   const rate = S.rate, taxPen = Math.max(0, rate - 12) * 3 - Math.max(0, 7 - rate) * .5, power = use <= 0 ? 1 : clamp(gen / use, 0, 1);
   const powPen = (1 - power) * 40, uePen = unemp * 25;
@@ -147,7 +168,7 @@ function monthly() {
   const happy = hp > 0 ? hw / hp : 50 - taxPen - powPen;
   // finance
   const f = rate / 9, fill = jobs > 0 ? Math.min(1, work / jobs) : 0;
-  const taxRes = pop * .9 * f, taxBiz = (jobsC * 1.1 + jobsI * 1.3) * fill * f, tourInc = tour * clamp(happy / 60, 0, 1.2);
+  const taxRes = pop * .9 * f, taxBiz = (effC * 1.1 + effI * 1.3) * fill * f, tourInc = tour * clamp(happy / 60, 0, 1.2);
   let roads = 0; for (let i = 0; i < MAP * MAP; i++) roads += S.road[i];
   const exp = roads * 1.2 + up, inc = taxRes + taxBiz + tourInc;
   S.money += inc - exp; S.last = { inc, exp, tax: taxRes, biz: taxBiz, tour: tourInc, roads: roads * 1.2, up };
@@ -160,20 +181,20 @@ function monthly() {
   dm[3] = clamp((idealI - jobsI) / (idealI + 60) - (rate - 9) * .03, -1, 1);
   S.stats = { pop, jobs, jobsC, jobsI, happy: clamp(happy, 0, 100), gen, use, dem: dm, avgOcc: occN ? occSum / occN : 1, unemp };
   S.log.push({ day: S.day, pop, money: Math.round(S.money) }); if (S.log.length > 240) S.log.shift();
-  if (use > gen && use > 0) toast('Power shortage! Build more power plants.');
+  if (use > gen && use > 0 && S.day - (S.warnDay ?? -999) > 150) { toast('Power shortage! Build more power plants.'); S.warnDay = S.day; }
   if (S.money < 0) toast('The treasury is empty!');
   if ((S.day / 30) % 3 === 0) save();
 }
 
-function dateText() { const m = Math.floor(S.day / 30); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m % 12]} ${1970 + Math.floor(m / 12)}`; }
+function dateText() { const m = Math.floor(S.day / 30); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m % 12]} ${1970 + Math.floor(m / 12)} · ${SEASONS[seasonIdx()]}`; }
 
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, day: S.day, money: S.money, rate: S.rate, ter: Array.from(S.ter), tree: Array.from(S.tree), road: Array.from(S.road), zone: Array.from(S.zone),
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, biome: S.biome, rock: Array.from(S.rock), day: S.day, money: S.money, rate: S.rate, ter: Array.from(S.ter), tree: Array.from(S.tree), road: Array.from(S.road), zone: Array.from(S.zone),
   blds: S.blds.filter(Boolean).map(b => ({ n: b.name, x: b.x, y: b.y, o: +b.occ.toFixed(3) })) })); } catch (e) {} }
 function load() {
   let raw; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {} if (!raw) return false;
-  try { const d = JSON.parse(raw); const s = newState(); s.day = d.day; s.money = d.money; s.rate = d.rate;
+  try { const d = JSON.parse(raw); if (d.v !== 2) return false; const s = newState(d.biome); s.rock.set(d.rock); s.day = d.day; s.money = d.money; s.rate = d.rate;
     s.ter.set(d.ter); s.tree.set(d.tree); s.road.set(d.road); s.zone.set(d.zone); S = s;
     d.blds.forEach(b => { const x = DEF[b.n]; if (x) addBuilding(x, b.x, b.y).occ = b.o; });
     const m = d.money; recompute(); monthly(); S.day = d.day; S.money = m; return true; } catch (e) { return false; }
 }
-function newGame() { S = newState(); recompute(); }
+function newGame(biome = 'taiga') { S = newState(biome); placeResources(); recompute(); }

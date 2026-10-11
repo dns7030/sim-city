@@ -114,6 +114,31 @@ function describe(d) {
   const p = [];
   if (d.gen) p.push(`+${d.gen} MW`); if (d.pw) p.push(`uses ${d.pw} MW`); if (d.jobs) p.push(`${d.jobs} jobs`); if (d.cap) p.push(`${d.cap} residents`);
   ['edu', 'health', 'cult', 'happy', 'transit', 'police', 'fire'].forEach(k => { if (d[k]) p.push(`${k} r${d.r}`); });
+  if (d.boost) p.push(`boosts nearby ${d.boost === 'I' ? 'industry' : 'shops'} (${d.label})`);
   if (d.poll) p.push(`pollution ${d.poll}`); if (d.tour) p.push(`tourism ${d.tour}/mo`); if (d.up) p.push(`upkeep ${d.up}/mo`);
   return p.join(' · ');
 }
+
+// ---- Natural resource sites (placed by the map generator; cannot be built or bulldozed) ----
+Object.assign(N, { coalmine: 'Coal Mine', ironq: 'Iron Ore Quarry', oilf: 'Oil Field', farm: 'Collective Farm' });
+def('coalmine', { kind: 'X', poll: 4, r: 5, boost: 'I', label: 'coal' });
+def('ironq',    { kind: 'X', poll: 3, r: 5, boost: 'I', label: 'iron ore' });
+def('oilf',     { kind: 'X', poll: 3, r: 5, boost: 'I', label: 'oil' });
+def('farm',     { kind: 'X', poll: 0, r: 0, boost: 'C', label: 'farmland' });
+
+// ---- Biomes (map choices) ----
+// river: width / x position / wobble; lake: radius and position (fractions of MAP); rock: [hill threshold, mountain threshold] on a noise field
+const BIOMES = {
+  taiga:     { name: 'Russian Forest', desc: 'Rivers, birch and spruce forests, long winters.', cold: 1.2, river: { w: 1.8, x: .33, amp: 6 }, lake: { r: 5, x: .76, y: .22 }, rock: [1.25, 9], trees: .30, treeKinds: [[2, .4], [1, .6]],
+    ground: ['#6f9a55', '#729d58', '#6c9652', '#75a05a', '#6a9450'], res: [['coalmine', 2], ['ironq', 1], ['farm', 2]] },
+  steppe:    { name: 'Steppe (Ukraine / Kazakhstan)', desc: 'Wide open plains, a broad river, golden fields. Few trees.', cold: 1.1, river: { w: 2.6, x: .5, amp: 9 }, lake: { r: 3, x: .2, y: .75 }, rock: [1.55, 9], trees: .035, treeKinds: [[1, 1]],
+    ground: ['#9aa95a', '#a1ae5e', '#94a455', '#a6b362', '#8fa052'], res: [['coalmine', 2], ['oilf', 1], ['ironq', 1], ['farm', 3]] },
+  desert:    { name: 'Desert (Uzbekistan / Turkmenistan)', desc: 'Sand, dunes and a narrow river oasis. Hot summers, mild winters.', cold: 0, river: { w: 1.1, x: .4, amp: 7 }, lake: { r: 3, x: .72, y: .7 }, rock: [.85, 9], trees: .045, treeKinds: [[3, 1]],
+    ground: ['#d9c28a', '#dcc690', '#d3ba80', '#e0cb98', '#cdb47a'], res: [['oilf', 2], ['ironq', 1], ['farm', 2]] },
+  mountains: { name: 'Mountains (Caucasus / Altai)', desc: 'Peaks, foothills and tight valleys. Little flat land.', cold: 1.2, river: { w: 1.4, x: .5, amp: 10 }, lake: { r: 4, x: .25, y: .25 }, rock: [.35, .95], trees: .16, treeKinds: [[2, .6], [1, .4]],
+    ground: ['#68964f', '#6b9952', '#64904c', '#6f9c55', '#628c4a'], res: [['ironq', 2], ['coalmine', 1], ['farm', 1]] },
+  arctic:    { name: 'Far North (Norilsk / Murmansk)', desc: 'Tundra, frozen lakes and permanent cold. Heating is expensive.', cold: 1.35, river: { w: 1.2, x: .6, amp: 5 }, lake: { r: 8, x: .2, y: .3 }, rock: [1.0, 1.75], trees: .06, treeKinds: [[2, 1]],
+    ground: ['#a9b8aa', '#aebdb0', '#a3b2a5', '#b3c2b5', '#9fae9f'], res: [['coalmine', 2], ['oilf', 1], ['ironq', 2]] },
+};
+const BIOME_ORDER = ['taiga', 'steppe', 'desert', 'mountains', 'arctic'];
+const SEASONS = ['Winter', 'Spring', 'Summer', 'Autumn'];

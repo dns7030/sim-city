@@ -33,14 +33,31 @@ function diamond(x, y, w = 1, d = 1) {
 function quad(x, y, u0, v0, u1, v1, col) { diamond(x + u0, y + v0, u1 - u0, v1 - v0); g.fillStyle = col; g.fill(); }
 
 // ---------- drawing ----------
+const hexToRgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+function mix(a, b, t) { const A = hexToRgb(a), B = hexToRgb(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); }
+let palKey = '', PAL = null;
+function getPal() {
+  const sn = seasonIdx(), key = S.biome + sn; if (key === palKey) return PAL; palKey = key;
+  const b = S.biome, B = BIOMES[b], tint = c => {
+    if (b === 'desert') return [mix(c, '#e6dcc4', .2), mix(c, '#c9c07a', .15), c, c][sn];
+    if (b === 'arctic') return [mix(c, '#f2f6f8', .92), mix(c, '#d0d6cc', .3), mix(c, '#8fa88c', .2), mix(c, '#d0d6cc', .3)][sn];
+    return [mix(c, '#eef3f6', .88), mix(c, '#9fd06a', .18), c, mix(c, b === 'steppe' ? '#c4a24a' : '#b99a45', b === 'steppe' ? .4 : .45)][sn];
+  };
+  const base = b === 'desert' ? '#3f8fb0' : '#4a86b8';
+  PAL = { ground: B.ground.map(tint), snow: sn === 0 && b !== 'desert' || b === 'arctic' && sn !== 2, sn,
+    water: b !== 'desert' && (sn === 0 || b === 'arctic' && sn !== 2) ? '#bcd9e8' : sn === 3 ? mix(base, '#6a7f8a', .2) : sn === 1 ? mix(base, '#7fc0e0', .1) : base,
+    ice: b !== 'desert' && (sn === 0 || b === 'arctic' && sn !== 2),
+    rock: b === 'desert' ? ['#c9a56a', '#a88650'] : b === 'arctic' ? ['#9aa5ad', '#76828a'] : ['#8d8a85', '#6d6a66'] };
+  return PAL;
+}
 function groundColor(x, y, i) {
-  if (S.ter[i]) return '#4a86b8';
-  const h = (x * 7 + y * 13 + (x * y) % 5) % 5; return ['#6f9a55', '#729d58', '#6c9652', '#75a05a', '#6a9450'][h];
+  const P_ = getPal(); if (S.ter[i]) return P_.water;
+  return P_.ground[(x * 7 + y * 13 + (x * y) % 5) % 5];
 }
 function drawTile(x, y, t) {
   const i = idx(x, y), col = groundColor(x, y, i);
   diamond(x, y); g.fillStyle = col; g.fill(); g.strokeStyle = col; g.lineWidth = 1; g.stroke();
-  if (S.ter[i]) { const [wx, wy] = P(x, y), s = Math.sin(t / 700 + x * .9 + y * .6); g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(wx - 9 + s * 4, wy + HH - 1, 14, 1.5); }
+  if (S.ter[i]) { const [wx, wy] = P(x, y); if (PAL.ice) { g.fillStyle = 'rgba(120,160,190,.35)'; g.fillRect(wx - 8 + (x * 5 + y * 3) % 7, wy + HH - 1, 12, 1); } else { const s = Math.sin(t / 700 + x * .9 + y * .6); g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(wx - 9 + s * 4, wy + HH - 1, 14, 1.5); } }
   if (S.zone[i]) { diamond(x, y); g.fillStyle = ZONE_COLOR[S.zone[i]] + '55'; g.fill(); g.strokeStyle = ZONE_COLOR[S.zone[i]] + '88'; g.stroke(); }
   if (S.road[i]) drawRoad(x, y, i);
 }
@@ -59,13 +76,42 @@ function drawRoad(x, y, i) {
   }
   if (bridge) { g.strokeStyle = '#e6e2d4'; g.lineWidth = 1.5; [[0, 0, 1, 0], [0, 1, 1, 1], [0, 0, 0, 1], [1, 0, 1, 1]].forEach(([a, b, c, d]) => { if (((a === 0 && c === 1 && b === d) && (px || mx)) || ((a === c) && (py || my))) { const p1 = P(x + a, y + b), p2 = P(x + c, y + d); g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke(); } }); }
 }
-function drawTree(x, y) {
-  const [wx, wy] = P(x, y), cx = wx, by = wy + HH + 4;
-  g.fillStyle = '#5a4630'; g.fillRect(cx - 1.5, by - 8, 3, 8); sphere(cx, by - 14, 8, '#3f7a3a'); sphere(cx + 2, by - 19, 6, '#4f8d45');
+function drawTree(x, y, type) {
+  const [wx, wy] = P(x, y), cx = wx + ((x * 5 + y * 3) % 7 - 3), by = wy + HH + 4, h = (x * 31 + y * 17) % 7, sn = PAL.sn;
+  if (type === 2) { // conifer
+    g.fillStyle = '#4a3a2a'; g.fillRect(cx - 1.5, by - 6, 3, 6);
+    const col = sn === 1 ? '#3a7a45' : '#2f5f3a'; [[11, 9, 0], [9, 8, 9], [6, 7, 17]].forEach(([w, hh, o], k) => {
+      g.fillStyle = col; g.beginPath(); g.moveTo(cx - w, by - 6 - o); g.lineTo(cx, by - 6 - o - hh - 4); g.lineTo(cx + w, by - 6 - o); g.closePath(); g.fill();
+      if (sn === 0 || PAL.snow) { g.fillStyle = '#eef3f6'; g.beginPath(); g.moveTo(cx - w * .55, by - 6 - o - hh * .45); g.lineTo(cx, by - 6 - o - hh - 4); g.lineTo(cx + w * .55, by - 6 - o - hh * .45); g.closePath(); g.fill(); } });
+  } else if (type === 3) { // desert plant
+    if (h === 0) { g.fillStyle = '#5f8a4a'; g.fillRect(cx - 2, by - 14, 4, 14); g.fillRect(cx - 7, by - 10, 3, 6); g.fillRect(cx - 7, by - 10, 6, 2.5); g.fillRect(cx + 4, by - 12, 3, 6); g.fillRect(cx + 1, by - 12, 6, 2.5); }
+    else { sphere(cx - 3, by - 5, 5, '#8a9a5a'); sphere(cx + 3, by - 6, 6, '#a0a864'); if (sn === 1 && h % 2) { g.fillStyle = '#f0d848'; g.fillRect(cx + 1, by - 11, 2, 2); } }
+  } else { // deciduous
+    g.fillStyle = '#5a4630'; g.fillRect(cx - 1.5, by - 8, 3, 8);
+    if (sn === 0) { g.strokeStyle = '#5a4630'; g.lineWidth = 1.2; [[-6, -16], [0, -20], [6, -16], [-3, -13], [4, -12]].forEach(([dx, dy]) => { g.beginPath(); g.moveTo(cx, by - 8); g.lineTo(cx + dx, by + dy); g.stroke(); }); g.fillStyle = '#eef3f6'; g.fillRect(cx - 7, by - 17, 3, 2); g.fillRect(cx - 1, by - 21, 3, 2); g.fillRect(cx + 5, by - 17, 3, 2); }
+    else { const c = sn === 1 ? ['#7fc060', '#9ad474'] : sn === 3 ? [['#c9702a', '#e0a030'], ['#e0a030', '#b8452a'], ['#b8452a', '#d98a2a']][h % 3] : ['#3f7a3a', '#4f8d45'];
+      sphere(cx, by - 14, 8, c[0]); sphere(cx + 2, by - 19, 6, c[1]);
+      if (sn === 1) { g.fillStyle = h % 2 ? '#fff' : '#f8c8d8'; [[-4, -16], [3, -21], [5, -14]].forEach(([dx, dy]) => g.fillRect(cx + dx, by + dy, 2, 2)); } }
+  }
+}
+function drawRock(x, y, type) {
+  const [wx, wy] = P(x, y), cx = wx, by = wy + HH, hs = (x * 73 + y * 41) % 11 / 11, sn = PAL.sn, b = S.biome;
+  if (type === 1) { // hill / dune
+    const w = HW * .92, h = 16 + hs * 9, base = PAL.ground[(x * 7 + y * 13) % 5], gr = g.createLinearGradient(cx - w, 0, cx + w, 0);
+    gr.addColorStop(0, mix(base, '#ffffff', b === 'desert' ? .22 : .12)); gr.addColorStop(1, mix(base, '#000000', .28));
+    g.fillStyle = gr; g.beginPath(); g.moveTo(cx - w, by + 3); g.quadraticCurveTo(cx - w * .5, by - h * 1.7, cx + hs * 6 - 3, by - h); g.quadraticCurveTo(cx + w * .6, by - h * 1.5, cx + w, by + 3); g.ellipse(cx, by + 3, w, w * .5, 0, 0, Math.PI, false); g.closePath(); g.fill();
+    return;
+  }
+  const w = HW * 1.0, h = 36 + hs * 40, ax = cx + (hs - .5) * 10, ay = by - h, L = [cx - w, by], R = [cx + w, by], Bm = [cx, by + w * .5], A = [ax, ay];
+  const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+  const snowF = b === 'desert' ? 0 : sn === 0 ? .62 : b === 'arctic' || b === 'mountains' ? (sn === 2 ? .22 : .38) : .15;
+  const face = (p, q, col, sc) => { g.fillStyle = col; g.beginPath(); g.moveTo(...A); g.lineTo(...p); g.lineTo(...q); g.closePath(); g.fill();
+    if (snowF > 0) { const a = lerp(A, p, snowF), c = lerp(A, q, snowF); g.fillStyle = sc; g.beginPath(); g.moveTo(...A); g.lineTo(...a); g.lineTo((a[0] + c[0]) / 2, (a[1] + c[1]) / 2 + 4); g.lineTo(...c); g.closePath(); g.fill(); } };
+  face(L, Bm, PAL.rock[0], '#f4f8fa'); face(Bm, R, PAL.rock[1], '#d4dde3');
 }
 function buildDrawList() {
   const L = [];
-  for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) if (S.tree[idx(x, y)]) L.push({ k: (x + y) * 1000 + x, t: 1, x, y });
+  for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) { const i = idx(x, y); if (S.tree[i]) L.push({ k: (x + y) * 1000 + x, t: 1, x, y, v: S.tree[i] }); if (S.rock[i]) L.push({ k: (x + y) * 1000 + x, t: 2, x, y, v: S.rock[i] }); }
   for (const b of S.blds) if (b) L.push({ k: (b.x + b.w - 1 + b.y + b.d - 1) * 1000 + b.x, t: 0, b, x: b.x, y: b.y });
   L.sort((a, b) => a.k - b.k); S.drawList = L; S.drawDirty = false;
 }
@@ -73,7 +119,7 @@ function ghostOK(name, ax, ay) { const d = DEF[name]; return canPlace(d, ax, ay)
 function anchorFor(name, tx, ty) { const d = DEF[name]; return [tx - Math.floor((d.w - 1) / 2), ty - Math.floor((d.d - 1) / 2)]; }
 
 function draw(t) {
-  initCtx(g); g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#1d2229'; g.fillRect(0, 0, view.width, view.height);
+  initCtx(g); getPal(); g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#1d2229'; g.fillRect(0, 0, view.width, view.height);
   g.setTransform(cam.z, 0, 0, cam.z, cam.x, cam.y);
   const vx0 = -cam.x / cam.z, vy0 = -cam.y / cam.z, vx1 = vx0 + view.width / cam.z, vy1 = vy0 + view.height / cam.z;
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) { const [wx, wy] = P(x, y); if (wx + HW < vx0 || wx - HW > vx1 || wy + 2 * HH < vy0 || wy > vy1) continue; drawTile(x, y, t); }
@@ -81,7 +127,7 @@ function draw(t) {
   for (const o of S.drawList) {
     const [wx, wy] = P(o.x, o.y);
     if (wx < vx0 - 300 || wx > vx1 + 300 || wy < vy0 - 100 || wy > vy1 + 330) continue;
-    if (o.t) drawTree(o.x, o.y);
+    if (o.t === 1) drawTree(o.x, o.y, o.v); else if (o.t === 2) drawRock(o.x, o.y, o.v);
     else { const s = SP[o.b.name]; g.drawImage(s.img, wx - s.ox, wy - s.oy); if (selected === o.b) { diamond(o.b.x, o.b.y, o.b.w, o.b.d); g.strokeStyle = '#ffd24a'; g.lineWidth = 2; g.stroke(); } }
   }
   if (hover) {
@@ -113,7 +159,7 @@ function renderInfo() {
   const b = selected && S.blds.includes(selected) ? selected : (hover && inMap(hover[0], hover[1]) ? bAt(hover[0], hover[1]) : null);
   if (b) { const d = DEF[b.name]; h = `<b>${b.name}</b><br>${d.kind === 'R' ? `Residents ${Math.round(d.cap * b.occ)} / ${d.cap}` : d.jobs ? `Jobs ${d.jobs}` : ''}${d.kind === 'R' && b.g != null ? `<br>Satisfaction ${Math.round(b.g)}%` : ''}<br><span class="dim">${describe(d)}</span>`; }
   else if (hover && inMap(hover[0], hover[1])) { const i = idx(hover[0], hover[1]);
-    h = `<b>${S.ter[i] ? 'Water' : S.road[i] ? 'Road' : S.zone[i] ? ZONE_NAME[S.zone[i]] + ' zone' : S.tree[i] ? 'Trees' : 'Grass'}</b> <span class="dim">(${hover[0]}, ${hover[1]})</span><br><span class="dim">Land value ${Math.round(S.cov.lv[i])} · Pollution ${S.cov.poll[i].toFixed(1)}</span>`; }
+    h = `<b>${S.ter[i] ? (PAL.ice ? 'Frozen water' : 'Water') : S.rock[i] === 2 ? 'Mountain' : S.rock[i] ? (S.biome === 'desert' ? 'Dune' : 'Hill') : S.road[i] ? 'Road' : S.zone[i] ? ZONE_NAME[S.zone[i]] + ' zone' : S.tree[i] ? 'Trees' : 'Grass'}</b> <span class="dim">(${hover[0]}, ${hover[1]})</span><br><span class="dim">Land value ${Math.round(S.cov.lv[i])} · Pollution ${S.cov.poll[i].toFixed(1)}</span>`; }
   else h = '<span class="dim">Hover the map. Build power, roads, then zones.</span>';
   if (e._h !== h) { e.innerHTML = h; e._h = h; }
 }
@@ -146,6 +192,15 @@ function buildPalette() {
       grid.appendChild(btn);
     });
   });
+}
+function showPicker(first) {
+  const m = $('picker'); m.hidden = false; $('pickerTitle').textContent = first ? 'Choose your land' : 'New city: choose your land';
+  const box = $('pickerCards'); box.innerHTML = '';
+  [...BIOME_ORDER, 'random'].forEach(k => { const c = document.createElement('button'); c.className = 'card'; const B = BIOMES[k];
+    c.innerHTML = `<b>${k === 'random' ? 'Random' : B.name}</b><span>${k === 'random' ? 'Surprise me.' : B.desc}</span>`;
+    c.onclick = () => { const biome = k === 'random' ? pick(BIOME_ORDER) : k; m.hidden = true; newGame(biome); centerCam(); $('rate').value = S.rate; setTool({ type: 'select' }); showToast(BIOMES[biome].name + '. Build power, roads, then zone R / C / I.'); };
+    box.appendChild(c); });
+  $('pickerCancel').hidden = first; $('pickerCancel').onclick = () => { m.hidden = true; };
 }
 function setTool(t) {
   tool = t; selected = null;
@@ -198,13 +253,13 @@ addEventListener('resize', resize);
 function centerCam() { cam.z = 1; cam.x = view.width / 2 + 120; cam.y = view.height / 2 - (MAP - 1) * HH * cam.z; }
 function boot() {
   resize(); initSprites(); buildPalette();
-  if (!load()) { newGame(); showToast('Welcome! Build a power plant, then roads, then zone R / C / I.'); }
-  centerCam(); setTool({ type: 'select' });
+  const loaded = load(); if (!loaded) { newGame('taiga'); S.speed = 0; }
+  centerCam(); setTool({ type: 'select' }); if (!loaded) showPicker(true);
   document.querySelectorAll('.spd').forEach(b => b.onclick = () => { S.speed = +b.dataset.s; });
   $('btnBudget').onclick = () => { $('budget').hidden = !$('budget').hidden; renderBudget(); };
   $('closeBudget').onclick = () => { $('budget').hidden = true; };
   $('rate').oninput = e => { S.rate = +e.target.value; renderBudget(); }; $('rate').value = S.rate;
-  $('btnNew').onclick = () => { if (confirm('Start a new city? The current one will be lost.')) { newGame(); centerCam(); $('rate').value = S.rate; } };
+  $('btnNew').onclick = () => { if (confirm('Start a new city? The current one will be lost.')) showPicker(false); };
   $('btnSave').onclick = () => { save(); showToast('Saved'); };
   let last = performance.now(), acc = 0, hud = 0;
   (function frame(t) {

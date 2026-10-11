@@ -33,6 +33,11 @@
   #budget[hidden] { display: none; } #budget h3 { margin: 0 0 8px; color: #f0c648; } #budget table { width: 100%; border-collapse: collapse; } #budget td { padding: 3px 0; border-bottom: 1px solid #3d2c2c; } .r { text-align: right; } .neg { color: #ff8a7a; }
   #budget input { width: 100%; margin-top: 4px; }
   @media (max-width: 800px) { #palette { width: 190px; } #top { gap: 10px; overflow-x: auto; } }
+  #picker { position: fixed; inset: 0; background: #000b; z-index: 9; display: flex; align-items: center; justify-content: center; }
+  #picker[hidden] { display: none; } #picker > div { background: #2a1f1f; border: 2px solid #b02a22; border-radius: 8px; padding: 18px; width: min(760px, 94vw); max-height: 92vh; overflow-y: auto; }
+  #picker h2 { margin: 0 0 12px; color: #f0c648; } #pickerCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+  .card { text-align: left; background: #3b2a2a; border: 1px solid #6b4040; border-radius: 5px; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .card:hover { background: #4d3535; border-color: #f0c648; } .card span { font-size: 12px; color: #c9bdb4; }
 </style>
 </head>
 <body>
@@ -52,6 +57,7 @@
 <div id="palette"></div>
 <div id="infoBox"><div id="info"></div><div id="hint"></div></div>
 <div id="toasts"></div>
+<div id="picker" hidden><div><h2 id="pickerTitle"></h2><div id="pickerCards"></div><div style="margin-top:12px"><button class="btn" id="pickerCancel">Cancel</button></div></div></div>
 <div id="budget" hidden><h3>Budget <button class="btn" id="closeBudget" style="float:right">✕</button></h3><div id="budgetBody"></div>
   <div style="margin-top:10px">Tax rate: <b id="rateVal"></b><input id="rate" type="range" min="0" max="20" step="1" value="9"></div></div>
 <script src="sprites/engine.js"></script>
@@ -60,6 +66,7 @@
 <script src="sprites/set3.js"></script>
 <script src="sprites/set4.js"></script>
 <script src="sprites/set5.js"></script>
+<script src="sprites/set6.js"></script>
 <script src="game/data.js"></script>
 <script src="game/sim.js"></script>
 <script src="game/ui.js"></script>
