@@ -31,7 +31,9 @@
   .toast { background: #b02a22; color: #fff; padding: 7px 12px; border-radius: 4px; box-shadow: 0 2px 8px #0008; max-width: 340px; }
   #budget { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); width: 340px; background: #2a1f1f; border: 2px solid #b02a22; border-radius: 6px; padding: 12px 14px; z-index: 7; }
   #budget[hidden] { display: none; } #budget h3 { margin: 0 0 8px; color: #f0c648; } #budget table { width: 100%; border-collapse: collapse; } #budget td { padding: 3px 0; border-bottom: 1px solid #3d2c2c; } .r { text-align: right; } .neg { color: #ff8a7a; }
-  #budget input { width: 100%; margin-top: 4px; }
+  #budget input, #settings input { width: 100%; margin-top: 4px; }
+  #settings { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); width: 340px; background: #2a1f1f; border: 2px solid #b02a22; border-radius: 6px; padding: 12px 14px; z-index: 7; }
+  #settings[hidden] { display: none; } #settings h3 { margin: 0 0 8px; color: #f0c648; } #settings select { background: #3b2a2a; color: inherit; border: 1px solid #6b4040; padding: 4px; }
   @media (max-width: 800px) { #palette { width: 190px; } #top { gap: 10px; overflow-x: auto; } }
   #picker { position: fixed; inset: 0; background: #000b; z-index: 9; display: flex; align-items: center; justify-content: center; }
   #picker[hidden] { display: none; } #picker > div { background: #2a1f1f; border: 2px solid #b02a22; border-radius: 8px; padding: 18px; width: min(760px, 94vw); max-height: 92vh; overflow-y: auto; }
@@ -46,17 +48,22 @@
   <div class="brand">ГОРОД</div>
   <div class="stat"><small>Treasury</small><b id="money">₽ 0</b></div>
   <div class="stat"><small>Date</small><b id="date"></b></div>
+  <div class="stat"><small>Season</small><b id="season"></b></div>
   <div class="stat"><small>Population</small><b id="pop">0</b></div>
   <div class="stat"><small>Happiness</small><b id="happy">0%</b></div>
   <div class="stat"><small>Power use / supply</small><b id="power"></b></div>
   <div class="rci"><div title="Residential demand"><i id="dR"></i><span>R</span></div><div title="Commercial demand"><i id="dC"></i><span>C</span></div><div title="Industrial demand"><i id="dI"></i><span>I</span></div></div>
   <div class="sp"></div>
   <button class="spd" data-s="0" title="Pause (Space)">❚❚</button><button class="spd" data-s="1">1×</button><button class="spd" data-s="2">2×</button><button class="spd" data-s="4">4×</button>
-  <button class="btn" id="btnBudget">Budget</button><button class="btn" id="btnSave">Save</button><button class="btn" id="btnNew">New</button>
+  <button class="btn" id="btnBudget">Budget</button><button class="btn" id="btnSettings">Settings</button><button class="btn" id="btnSave">Save</button><button class="btn" id="btnNew">New</button>
 </div>
 <div id="palette"></div>
 <div id="infoBox"><div id="info"></div><div id="hint"></div></div>
 <div id="toasts"></div>
+<div id="settings" class="modal" hidden><h3>Settings <button class="btn" id="closeSettings" style="float:right">✕</button></h3>
+  <div>Minutes per season (at 1× speed): <b id="seasonVal"></b><input id="seasonMin" type="range" min="1" max="100" step="1" value="5"></div>
+  <div style="margin-top:10px">Season: <select id="seasonLock"><option value="-1">Automatic cycle</option><option value="1">Always spring</option><option value="2">Always summer</option><option value="3">Always autumn</option><option value="0">Always winter</option></select></div>
+  <div class="dim" style="margin-top:8px;font-size:11px">Faster game speeds make seasons pass faster too. The calendar is separate from the season cycle.</div></div>
 <div id="picker" hidden><div><h2 id="pickerTitle"></h2><div id="pickerCards"></div><div style="margin-top:12px"><button class="btn" id="pickerCancel">Cancel</button></div></div></div>
 <div id="budget" hidden><h3>Budget <button class="btn" id="closeBudget" style="float:right">✕</button></h3><div id="budgetBody"></div>
   <div style="margin-top:10px">Tax rate: <b id="rateVal"></b><input id="rate" type="range" min="0" max="20" step="1" value="9"></div></div>

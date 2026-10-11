@@ -147,7 +147,7 @@ const fmt = n => Math.round(n).toLocaleString('en-US');
 function bar(id, v) { const e = $(id); e.style.height = Math.abs(v) * 50 + '%'; e.style.bottom = v >= 0 ? '50%' : (50 - Math.abs(v) * 50) + '%'; e.style.background = v >= 0 ? '#4caf50' : '#d8483a'; }
 function updateHud() {
   const st = S.stats; $('money').textContent = '₽ ' + fmt(S.money); $('money').style.color = S.money < 0 ? '#ff6a5a' : '';
-  $('date').textContent = dateText(); $('pop').textContent = fmt(st.pop);
+  $('date').textContent = dateText(); $('season').textContent = SEASONS[seasonIdx()] + (settings.lock >= 0 ? ' (locked)' : ''); $('pop').textContent = fmt(st.pop);
   $('happy').textContent = Math.round(st.happy) + '%'; $('power').textContent = `${fmt(st.use)} / ${fmt(st.gen)} MW`; $('power').style.color = st.use > st.gen ? '#ff6a5a' : '';
   bar('dR', st.dem[1]); bar('dC', st.dem[2]); bar('dI', st.dem[3]);
   document.querySelectorAll('.spd').forEach(b => b.classList.toggle('on', +b.dataset.s === S.speed));
@@ -260,11 +260,17 @@ function boot() {
   $('closeBudget').onclick = () => { $('budget').hidden = true; };
   $('rate').oninput = e => { S.rate = +e.target.value; renderBudget(); }; $('rate').value = S.rate;
   $('btnNew').onclick = () => { if (confirm('Start a new city? The current one will be lost.')) showPicker(false); };
+  const sm = $('seasonMin'), sv = $('seasonVal'), sl = $('seasonLock');
+  sm.value = settings.seasonMin; sv.textContent = settings.seasonMin; sl.value = settings.lock;
+  sm.oninput = () => { settings.seasonMin = +sm.value; sv.textContent = sm.value; saveSettings(); };
+  sl.onchange = () => { settings.lock = +sl.value; saveSettings(); };
+  $('btnSettings').onclick = () => { $('settings').hidden = !$('settings').hidden; };
+  $('closeSettings').onclick = () => { $('settings').hidden = true; };
   $('btnSave').onclick = () => { save(); showToast('Saved'); };
   let last = performance.now(), acc = 0, hud = 0;
   (function frame(t) {
     const dt = Math.min(250, t - last); last = t;
-    if (S.speed > 0) { acc += dt * S.speed; let n = 0; while (acc >= DAY_MS && n++ < 12) { acc -= DAY_MS; tick(); } if (n >= 12) acc = 0; }
+    if (S.speed > 0) { S.seasonClock += dt * S.speed; acc += dt * S.speed; let n = 0; while (acc >= DAY_MS && n++ < 12) { acc -= DAY_MS; tick(); } if (n >= 12) acc = 0; }
     const sp = 9 / Math.sqrt(cam.z); if (keys.w || keys.arrowup) cam.y += sp; if (keys.s || keys.arrowdown) cam.y -= sp; if (keys.a || keys.arrowleft) cam.x += sp; if (keys.d || keys.arrowright) cam.x -= sp;
     if (S.covDirty) recompute();
     draw(t); if (t - hud > 200) { updateHud(); hud = t; }

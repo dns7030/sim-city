@@ -1,5 +1,9 @@
 // Simulation: state, placement, growth, monthly economy.
-const SAVE_KEY = 'gorod-save-v1';
+const SAVE_KEY = 'gorod-save-v1', SETTINGS_KEY = 'gorod-settings';
+// seasonMin: real minutes per season at 1x speed (1-100). lock: -1 = automatic cycle, else 0..3 forces that season.
+let settings = { seasonMin: 5, lock: -1 };
+try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) {}
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} }
 let S = null;
 const idx = (x, y) => y * MAP + x;
 const inMap = (x, y) => x >= 0 && y >= 0 && x < MAP && y < MAP;
@@ -12,7 +16,7 @@ function noiseAt(x, y, ph) {
 function newState(biome = 'taiga') {
   const n = MAP * MAP, B = BIOMES[biome];
   const s = { biome, ter: new Uint8Array(n), tree: new Uint8Array(n), rock: new Uint8Array(n), road: new Uint8Array(n), zone: new Uint8Array(n),
-    bmap: new Int32Array(n).fill(-1), blds: [], money: 60000, day: 0, rate: 9, speed: 1,
+    bmap: new Int32Array(n).fill(-1), blds: [], money: 60000, day: 0, rate: 9, speed: 1, seasonClock: 0,
     cov: {}, roadNear: new Uint8Array(n), stats: {}, last: { inc: 0, exp: 0, tax: 0, biz: 0, tour: 0, roads: 0, up: 0 }, log: [], drawDirty: true, covDirty: true };
   const phase = Math.random() * 6, ph = [0, 1, 2, 3, 4].map(() => Math.random() * 6.28), c = (MAP - 1) / 2;
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
@@ -42,7 +46,7 @@ function placeResources() {
       if (dc < 10 || dc > 30 || !canPlace(d, ax, ay) || placed.some(p => Math.hypot(p[0] - ax, p[1] - ay) < 9)) continue;
       addBuilding(d, ax, ay); placed.push([ax, ay]); break; } });
 }
-function seasonIdx() { const m = Math.floor(S.day / 30) % 12; return m === 11 || m <= 1 ? 0 : m <= 4 ? 1 : m <= 7 ? 2 : 3; }
+function seasonIdx() { if (settings.lock >= 0) return settings.lock; return (1 + Math.floor(S.seasonClock / (clamp(settings.seasonMin, 1, 100) * 60000))) % 4; }
 
 function toast(msg) { if (typeof showToast === 'function') showToast(msg); }
 function bAt(x, y) { return inMap(x, y) && S.bmap[idx(x, y)] >= 0 ? S.blds[S.bmap[idx(x, y)]] : null; }
@@ -186,13 +190,13 @@ function monthly() {
   if ((S.day / 30) % 3 === 0) save();
 }
 
-function dateText() { const m = Math.floor(S.day / 30); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m % 12]} ${1970 + Math.floor(m / 12)} · ${SEASONS[seasonIdx()]}`; }
+function dateText() { const m = Math.floor(S.day / 30); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m % 12]} ${1970 + Math.floor(m / 12)}`; }
 
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, biome: S.biome, rock: Array.from(S.rock), day: S.day, money: S.money, rate: S.rate, ter: Array.from(S.ter), tree: Array.from(S.tree), road: Array.from(S.road), zone: Array.from(S.zone),
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, clock: Math.round(S.seasonClock), biome: S.biome, rock: Array.from(S.rock), day: S.day, money: S.money, rate: S.rate, ter: Array.from(S.ter), tree: Array.from(S.tree), road: Array.from(S.road), zone: Array.from(S.zone),
   blds: S.blds.filter(Boolean).map(b => ({ n: b.name, x: b.x, y: b.y, o: +b.occ.toFixed(3) })) })); } catch (e) {} }
 function load() {
   let raw; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {} if (!raw) return false;
-  try { const d = JSON.parse(raw); if (d.v !== 2) return false; const s = newState(d.biome); s.rock.set(d.rock); s.day = d.day; s.money = d.money; s.rate = d.rate;
+  try { const d = JSON.parse(raw); if (d.v !== 2) return false; const s = newState(d.biome); s.rock.set(d.rock); s.day = d.day; s.seasonClock = d.clock || 0; s.money = d.money; s.rate = d.rate;
     s.ter.set(d.ter); s.tree.set(d.tree); s.road.set(d.road); s.zone.set(d.zone); S = s;
     d.blds.forEach(b => { const x = DEF[b.n]; if (x) addBuilding(x, b.x, b.y).occ = b.o; });
     const m = d.money; recompute(); monthly(); S.day = d.day; S.money = m; return true; } catch (e) { return false; }
